@@ -1,0 +1,13 @@
+{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://mart-collective.onrender.com; connect-src 'self' https://mart-collective.onrender.com; img-src 'self' data:; font-src 'self' data:;"
+        }
+      ]
+    }
+  ]
+}
