@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 
 const DOCTORS = ['Dr. Marcus Williams','Dr. Patricia Holt','Dr. James Okafor'];
@@ -21,17 +21,26 @@ const INIT_PATIENTS = [
   { id:'P-005', name:'Ingrid Castellano' },
 ];
 
-const EMPTY_FORM = { patientId:'', doctor:'', dept:'', date:'', time:'' };
+const EMPTY_FORM = { patientId:'', patientName:'', doctor:'', dept:'', date:'', time:'' };
 
 export default function Scheduling() {
   const { user } = useAuth();
-  const [appointments, setAppointments] = useState(INIT_APPOINTMENTS);
-  const [patients]                      = useState(INIT_PATIENTS);
-  const [showForm, setShowForm]         = useState(false);
-  const [editAppt, setEditAppt]         = useState(null);
-  const [form, setForm]                 = useState(EMPTY_FORM);
-  const [successMsg, setSuccessMsg]     = useState('');
-  const [error, setError]               = useState('');
+
+  const [appointments, setAppointments] = useState(() => {
+    const saved = localStorage.getItem('mc_appointments');
+    return saved ? JSON.parse(saved) : INIT_APPOINTMENTS;
+  });
+
+  const [patients] = useState(INIT_PATIENTS);
+  const [showForm, setShowForm]     = useState(false);
+  const [editAppt, setEditAppt]     = useState(null);
+  const [form, setForm]             = useState(EMPTY_FORM);
+  const [successMsg, setSuccessMsg] = useState('');
+  const [error, setError]           = useState('');
+
+  useEffect(() => {
+    localStorage.setItem('mc_appointments', JSON.stringify(appointments));
+  }, [appointments]);
 
   const isPatient = user?.role === 'patient';
   const isNurse   = user?.role === 'nurse';
@@ -57,11 +66,12 @@ export default function Scheduling() {
   const openEditForm = (appt) => {
     setEditAppt(appt);
     setForm({
-      patientId: appt.pid,
-      doctor: appt.doctor,
-      dept: appt.dept,
-      date: appt.date,
-      time: appt.time,
+      patientId:   appt.pid,
+      patientName: appt.patient,
+      doctor:      appt.doctor,
+      dept:        appt.dept,
+      date:        appt.date,
+      time:        appt.time,
     });
     setError('');
     setShowForm(true);
@@ -70,30 +80,47 @@ export default function Scheduling() {
   const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
+
+    if (isPatient && !form.patientName.trim()) {
+      setError('Please enter your full name.');
+      return;
+    }
+    if (!isPatient && !form.patientId) {
+      setError('Please select a registered patient.');
+      return;
+    }
+    if (!form.doctor || !form.dept || !form.date || !form.time) {
+      setError('Please fill in all fields.');
+      return;
+    }
+
     const pid         = isPatient ? 'P-001' : form.patientId;
-    const patientName = isPatient ? 'Victoria Nguyen' : patients.find(p => p.id === pid)?.name;
-    if (!pid || !patientName) { setError('Please select a registered patient.'); return; }
+    const patientName = isPatient
+      ? form.patientName.trim()
+      : patients.find(p => p.id === form.patientId)?.name;
 
     if (editAppt) {
-      setAppointments(prev => prev.map(a => a.id === editAppt.id
-        ? { ...a, doctor: form.doctor, dept: form.dept, date: form.date, time: form.time, status: 'Confirmed' }
-        : a
+      setAppointments(prev => prev.map(a =>
+        a.id === editAppt.id
+          ? { ...a, patient: patientName, doctor: form.doctor, dept: form.dept, date: form.date, time: form.time, status: isPatient ? a.status : 'Confirmed' }
+          : a
       ));
       flash(`✅ Appointment ${editAppt.id} rescheduled to ${form.date} at ${form.time}.`);
     } else {
       const newAppt = {
-        id: `APT-00${appointments.length + 1}`,
+        id:      `APT-${String(appointments.length + 1).padStart(3,'0')}`,
         pid,
         patient: patientName,
-        doctor: form.doctor,
-        dept: form.dept,
-        date: form.date,
-        time: form.time,
-        status: isPatient ? 'Pending' : 'Confirmed',
+        doctor:  form.doctor,
+        dept:    form.dept,
+        date:    form.date,
+        time:    form.time,
+        status:  isPatient ? 'Pending' : 'Confirmed',
       };
       setAppointments(prev => [newAppt, ...prev]);
       flash(`✅ Appointment booked for ${patientName} with ${form.doctor} on ${form.date}.`);
     }
+
     setShowForm(false);
     setEditAppt(null);
     setForm(EMPTY_FORM);
@@ -111,7 +138,9 @@ export default function Scheduling() {
   };
 
   const statusBadge = (s) =>
-    s === 'Confirmed' ? 'badge-success' : s === 'Pending' ? 'badge-warning' : s === 'Completed' ? 'badge-neutral' : 'badge-danger';
+    s === 'Confirmed' ? 'badge-success' :
+    s === 'Pending'   ? 'badge-warning' :
+    s === 'Completed' ? 'badge-neutral' : 'badge-danger';
 
   return (
     <div>
@@ -133,49 +162,100 @@ export default function Scheduling() {
           <div style={{ fontWeight:700, marginBottom:12, fontSize:14 }}>
             {editAppt ? `Reschedule ${editAppt.id}` : isPatient ? 'Request Appointment' : 'Book Appointment'}
           </div>
-          {error && <div className="alert" style={{ background:'#fef2f2', color:'#dc2626', marginBottom:10 }}>❌ {error}</div>}
+          {error && (
+            <div className="alert" style={{ background:'#fef2f2', color:'#dc2626', marginBottom:10 }}>
+              ❌ {error}
+            </div>
+          )}
           <form onSubmit={handleSubmit}>
             <div className="form-grid">
+
+              {isPatient && (
+                <div className="form-group full">
+                  <label>Your Full Name</label>
+                  <input
+                    type="text"
+                    placeholder="Enter your first and last name"
+                    value={form.patientName}
+                    onChange={e => setForm({...form, patientName:e.target.value})}
+                    required
+                  />
+                </div>
+              )}
+
               {!isPatient && !editAppt && (
                 <div className="form-group">
                   <label>Patient</label>
-                  <select value={form.patientId} onChange={e => setForm({...form, patientId:e.target.value})} required>
+                  <select
+                    value={form.patientId}
+                    onChange={e => setForm({...form, patientId:e.target.value})}
+                    required
+                  >
                     <option value="">Select patient</option>
                     {patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
               )}
+
               <div className="form-group">
                 <label>Doctor</label>
-                <select value={form.doctor} onChange={e => setForm({...form, doctor:e.target.value})} required>
+                <select
+                  value={form.doctor}
+                  onChange={e => setForm({...form, doctor:e.target.value})}
+                  required
+                >
                   <option value="">Select doctor</option>
                   {DOCTORS.map(d => <option key={d}>{d}</option>)}
                 </select>
               </div>
+
               <div className="form-group">
                 <label>Department</label>
-                <select value={form.dept} onChange={e => setForm({...form, dept:e.target.value})} required>
-                  <option value="">Select dept</option>
+                <select
+                  value={form.dept}
+                  onChange={e => setForm({...form, dept:e.target.value})}
+                  required
+                >
+                  <option value="">Select department</option>
                   {DEPTS.map(d => <option key={d}>{d}</option>)}
                 </select>
               </div>
+
               <div className="form-group">
                 <label>Date</label>
-                <input type="date" value={form.date} onChange={e => setForm({...form, date:e.target.value})} required />
+                <input
+                  type="date"
+                  value={form.date}
+                  onChange={e => setForm({...form, date:e.target.value})}
+                  required
+                />
               </div>
+
               <div className="form-group">
                 <label>Time</label>
-                <select value={form.time} onChange={e => setForm({...form, time:e.target.value})} required>
+                <select
+                  value={form.time}
+                  onChange={e => setForm({...form, time:e.target.value})}
+                  required
+                >
                   <option value="">Select time</option>
                   {TIMES.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
+
             </div>
+
             <div style={{ display:'flex', gap:8, marginTop:12 }}>
               <button type="submit" className="btn btn-primary">
                 {editAppt ? 'Save Changes' : isPatient ? 'Submit Request' : 'Confirm Booking'}
               </button>
-              <button type="button" className="btn" onClick={() => { setShowForm(false); setEditAppt(null); }}>Cancel</button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => { setShowForm(false); setEditAppt(null); setForm(EMPTY_FORM); }}
+              >
+                Cancel
+              </button>
             </div>
           </form>
         </div>
@@ -209,23 +289,40 @@ export default function Scheduling() {
                   <td>
                     <div className="flex gap-8">
                       {canEdit && a.status !== 'Completed' && (
-                        <button className="btn btn-sm" onClick={() => openEditForm(a)}>Reschedule</button>
+                        <button className="btn btn-sm" onClick={() => openEditForm(a)}>
+                          Reschedule
+                        </button>
                       )}
                       {canEdit && a.status === 'Pending' && (
-                        <button className="btn btn-sm" onClick={() => updateStatus(a.id,'Confirmed')}>Confirm</button>
+                        <button className="btn btn-sm" onClick={() => updateStatus(a.id,'Confirmed')}>
+                          Confirm
+                        </button>
                       )}
                       {canEdit && a.status === 'Confirmed' && (
-                        <button className="btn btn-sm" onClick={() => updateStatus(a.id,'Completed')}>Complete</button>
+                        <button className="btn btn-sm" onClick={() => updateStatus(a.id,'Completed')}>
+                          Complete
+                        </button>
                       )}
-                      {(canEdit || (isPatient && a.status === 'Pending')) && (
-                        <button className="btn btn-danger btn-sm" onClick={() => cancel(a.id)}>Cancel</button>
+                      {isPatient && a.status === 'Pending' && (
+                        <button className="btn btn-danger btn-sm" onClick={() => cancel(a.id)}>
+                          Cancel
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button className="btn btn-danger btn-sm" onClick={() => cancel(a.id)}>
+                          Cancel
+                        </button>
                       )}
                     </div>
                   </td>
                 </tr>
               ))}
               {myAppts.length === 0 && (
-                <tr><td colSpan="8" style={{ textAlign:'center', color:'#9ca3af', padding:24 }}>No appointments found</td></tr>
+                <tr>
+                  <td colSpan="8" style={{ textAlign:'center', color:'#9ca3af', padding:24 }}>
+                    No appointments found
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
