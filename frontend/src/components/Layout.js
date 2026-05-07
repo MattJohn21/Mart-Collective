@@ -26,7 +26,7 @@ const PAGE_TITLES = {
 export default function Layout() {
   const { user, logout, canAccess } = useAuth();
   const location = useLocation();
-  const page = PAGE_TITLES[location.pathname] || { title: 'MedCore', sub: '' };
+  const page = PAGE_TITLES[location.pathname] || { title: 'Mart Collective', sub: '' };
 
   const initials = user?.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
@@ -34,7 +34,7 @@ export default function Layout() {
     <div className="app-layout">
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <h1>🏥 MedCore</h1>
+          <h1>🏥 Mart Collective</h1>
           <span>Healthcare Management System</span>
         </div>
 
