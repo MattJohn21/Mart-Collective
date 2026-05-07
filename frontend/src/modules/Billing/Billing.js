@@ -26,8 +26,8 @@ export default function Billing() {
   });
 
   const [completedAppts, setCompletedAppts] = useState(() => {
-    const appts = localStorage.getItem('mc_appointments');
-    const all   = appts ? JSON.parse(appts) : [];
+    const appts  = localStorage.getItem('mc_appointments');
+    const all    = appts ? JSON.parse(appts) : [];
     const billed = localStorage.getItem('mc_billed_appts');
     const billedIds = billed ? JSON.parse(billed) : [];
     return all.filter(a => a.status === 'Completed' && !billedIds.includes(a.id));
@@ -38,16 +38,16 @@ export default function Billing() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [showForm, setShowForm]       = useState(false);
-  const [form, setForm]               = useState({ patientId:'', amount:'' });
-  const [payId, setPayId]             = useState(null);
-  const [payAmount, setPayAmount]     = useState('');
-  const [payMethod, setPayMethod]     = useState('');
-  const [cardStep, setCardStep]       = useState('form');
-  const [cardError, setCardError]     = useState('');
-  const [card, setCard]               = useState({ number:'', name:'', expiry:'', cvv:'' });
-  const [successMsg, setSuccessMsg]   = useState('');
-  const [activeTab, setActiveTab]     = useState('invoices');
+  const [showForm, setShowForm]     = useState(false);
+  const [form, setForm]             = useState({ patientId:'', amount:'' });
+  const [payId, setPayId]           = useState(null);
+  const [payAmount, setPayAmount]   = useState('');
+  const [payMethod, setPayMethod]   = useState('');
+  const [cardStep, setCardStep]     = useState('form');
+  const [cardError, setCardError]   = useState('');
+  const [card, setCard]             = useState({ number:'', name:'', expiry:'', cvv:'' });
+  const [successMsg, setSuccessMsg] = useState('');
+  const [activeTab, setActiveTab]   = useState('invoices');
 
   useEffect(() => {
     localStorage.setItem('mc_invoices', JSON.stringify(invoices));
@@ -156,7 +156,7 @@ export default function Billing() {
     setInvoices(prev => [newInv, ...prev]);
     setBilledApptIds(prev => [...prev, appt.id]);
     setCompletedAppts(prev => prev.filter(a => a.id !== appt.id));
-    flash('✅ Invoice created for ' + appt.patient + ' from appointment ' + appt.id + '. Set the amount and process payment.');
+    flash('✅ Invoice created for ' + appt.patient + '. Set the amount and process payment.');
     setActiveTab('invoices');
   };
 
@@ -165,9 +165,7 @@ export default function Billing() {
     s === 'Partial' ? 'badge-warning' : 'badge-danger';
 
   const tabStyle = (t) => ({
-    padding: '8px 16px',
-    fontSize: 13,
-    cursor: 'pointer',
+    padding: '8px 16px', fontSize: 13, cursor: 'pointer',
     border: 'none',
     borderBottom: activeTab === t ? '2px solid #4f46e5' : '2px solid transparent',
     background: 'transparent',
@@ -175,9 +173,104 @@ export default function Billing() {
     fontWeight: activeTab === t ? 600 : 400,
   });
 
+  const PaymentPanel = ({ inv }) => (
+    <div>
+      {payId === inv.id && payMethod === '' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          <div style={{ fontSize:12, color:'#6b7280', marginBottom:2 }}>Select payment method:</div>
+          <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+            <input
+              type="number" min="1" placeholder="Amount $"
+              value={payAmount}
+              onChange={e => setPayAmount(e.target.value)}
+              style={{ width:100, padding:'5px 8px', fontSize:12, border:'1px solid #e8eaf0', borderRadius:6 }}
+            />
+            <button className="btn btn-sm" onClick={() => setPayMethod('cash')}>💵 Cash</button>
+            <button className="btn btn-sm" onClick={() => setPayMethod('card')}>💳 Card</button>
+            <button className="btn btn-sm" onClick={resetPay}>✕</button>
+          </div>
+        </div>
+      )}
+      {payId === inv.id && payMethod === 'cash' && (
+        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+          <span style={{ fontSize:12, color:'#6b7280' }}>Cash: ${Number(payAmount).toLocaleString()}</span>
+          <button className="btn btn-primary btn-sm" onClick={() => handleCash(inv.id)}>Confirm</button>
+          <button className="btn btn-sm" onClick={resetPay}>✕</button>
+        </div>
+      )}
+      {payId === inv.id && payMethod === 'card' && cardStep === 'form'       && <span style={{ fontSize:12, color:'#4f46e5' }}>Fill card form below ↓</span>}
+      {payId === inv.id && payMethod === 'card' && cardStep === 'processing' && <span style={{ fontSize:12, color:'#d97706' }}>⏳ Processing...</span>}
+      {payId === inv.id && payMethod === 'card' && cardStep === 'success'    && <span style={{ fontSize:12, color:'#059669' }}>✅ Authorized</span>}
+    </div>
+  );
+
+  const CardForm = () => (
+    payId && payMethod === 'card' && cardStep === 'form' ? (
+      <div style={{ marginTop:16 }}>
+        <div className="card card-body">
+          <div style={{ fontWeight:700, fontSize:14, marginBottom:16 }}>
+            💳 Card Payment — {invoices.find(i => i.id === payId)?.patient}
+          </div>
+          {cardError && (
+            <div className="alert" style={{ background:'#fef2f2', color:'#dc2626', marginBottom:12 }}>
+              ❌ {cardError}
+            </div>
+          )}
+          <form onSubmit={handleCardSubmit}>
+            <div className="form-grid">
+              <div className="form-group full">
+                <label>Card Number</label>
+                <input type="text" placeholder="1234 5678 9012 3456"
+                  value={card.number}
+                  onChange={e => setCard({...card, number:fmtCard(e.target.value)})}
+                  maxLength={19}
+                  style={{ fontFamily:'monospace', fontSize:15, letterSpacing:2 }}
+                  required />
+              </div>
+              <div className="form-group full">
+                <label>Cardholder Name</label>
+                <input type="text" placeholder="Name as it appears on card"
+                  value={card.name}
+                  onChange={e => setCard({...card, name:e.target.value})}
+                  required />
+              </div>
+              <div className="form-group">
+                <label>Expiry Date</label>
+                <input type="text" placeholder="MM/YY"
+                  value={card.expiry}
+                  onChange={e => setCard({...card, expiry:fmtExp(e.target.value)})}
+                  maxLength={5} required />
+              </div>
+              <div className="form-group">
+                <label>CVV</label>
+                <input type="password" placeholder="•••"
+                  value={card.cvv}
+                  onChange={e => setCard({...card, cvv:e.target.value.replace(/\D/g,'').slice(0,3)})}
+                  maxLength={3} required />
+              </div>
+            </div>
+            <div style={{ margin:'10px 0 14px', padding:'10px 12px', background:'#f9fafb', borderRadius:8, fontSize:12, color:'#6b7280' }}>
+              💡 Demo: use any 16-digit number, future expiry date, and any 3-digit CVV.
+            </div>
+            <div style={{ display:'flex', gap:8 }}>
+              <button type="submit" className="btn btn-primary">
+                Authorize ${Number(payAmount).toLocaleString()}
+              </button>
+              <button type="button" className="btn" onClick={resetPay}>Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    ) : null
+  );
+
   return (
     <div>
-      {isPatient && <div className="alert alert-info">🔒 Showing your invoices only.</div>}
+      {isPatient && (
+        <div className="alert alert-info">
+          🔒 Showing your invoices. You can pay outstanding balances using cash or card.
+        </div>
+      )}
       {successMsg && <div className="alert alert-info">{successMsg}</div>}
 
       {!isPatient && (
@@ -185,23 +278,45 @@ export default function Billing() {
           <div className="stat-card"><div className="stat-label">Total Billed</div><div className="stat-value">${total.toLocaleString()}</div></div>
           <div className="stat-card"><div className="stat-label">Collected</div><div className="stat-value">${collected.toLocaleString()}</div></div>
           <div className="stat-card"><div className="stat-label">Outstanding</div><div className="stat-value">${(total-collected).toLocaleString()}</div></div>
-          <div className="stat-card"><div className="stat-label">Ready to Bill</div><div className="stat-value" style={{ color: completedAppts.length > 0 ? '#d97706' : undefined }}>{completedAppts.length}</div></div>
+          <div className="stat-card">
+            <div className="stat-label">Ready to Bill</div>
+            <div className="stat-value" style={{ color: completedAppts.length > 0 ? '#d97706' : undefined }}>
+              {completedAppts.length}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isPatient && (
+        <div className="stats-row">
+          <div className="stat-card"><div className="stat-label">Total Invoices</div><div className="stat-value">{myInvoices.length}</div></div>
+          <div className="stat-card"><div className="stat-label">Total Billed</div><div className="stat-value">${total.toLocaleString()}</div></div>
+          <div className="stat-card"><div className="stat-label">Amount Paid</div><div className="stat-value">${collected.toLocaleString()}</div></div>
+          <div className="stat-card">
+            <div className="stat-label">Balance Due</div>
+            <div className="stat-value" style={{ color: (total-collected) > 0 ? '#dc2626' : '#059669' }}>
+              ${(total-collected).toLocaleString()}
+            </div>
+          </div>
         </div>
       )}
 
       {canWrite && completedAppts.length > 0 && (
         <div className="alert alert-warning">
-          ⚠️ {completedAppts.length} completed appointment{completedAppts.length > 1 ? 's' : ''} ready to be billed. Go to the <strong>Ready to Bill</strong> tab.
+          ⚠️ {completedAppts.length} completed appointment{completedAppts.length > 1 ? 's' : ''} ready to be billed.
+          Go to the <strong>Ready to Bill</strong> tab.
         </div>
       )}
 
       {canWrite && (
         <div style={{ display:'flex', borderBottom:'1px solid #e8eaf0', marginBottom:16 }}>
           <button style={tabStyle('invoices')} onClick={() => setActiveTab('invoices')}>
-            All Invoices {myInvoices.length > 0 && <span className="badge badge-neutral" style={{ marginLeft:6 }}>{myInvoices.length}</span>}
+            All Invoices
+            {myInvoices.length > 0 && <span className="badge badge-neutral" style={{ marginLeft:6 }}>{myInvoices.length}</span>}
           </button>
           <button style={tabStyle('ready')} onClick={() => setActiveTab('ready')}>
-            Ready to Bill {completedAppts.length > 0 && <span className="badge badge-warning" style={{ marginLeft:6 }}>{completedAppts.length}</span>}
+            Ready to Bill
+            {completedAppts.length > 0 && <span className="badge badge-warning" style={{ marginLeft:6 }}>{completedAppts.length}</span>}
           </button>
         </div>
       )}
@@ -219,14 +334,7 @@ export default function Billing() {
             <div className="card">
               <table>
                 <thead>
-                  <tr>
-                    <th>Appt ID</th>
-                    <th>Patient</th>
-                    <th>Doctor</th>
-                    <th>Department</th>
-                    <th>Date</th>
-                    <th>Action</th>
-                  </tr>
+                  <tr><th>Appt ID</th><th>Patient</th><th>Doctor</th><th>Department</th><th>Date</th><th>Action</th></tr>
                 </thead>
                 <tbody>
                   {completedAppts.map(appt => (
@@ -237,10 +345,7 @@ export default function Billing() {
                       <td>{appt.dept}</td>
                       <td>{appt.date}</td>
                       <td>
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={() => billFromAppointment(appt)}
-                        >
+                        <button className="btn btn-primary btn-sm" onClick={() => billFromAppointment(appt)}>
                           Generate Invoice
                         </button>
                       </td>
@@ -264,7 +369,7 @@ export default function Billing() {
             )}
           </div>
 
-          {showForm && (
+          {showForm && canWrite && (
             <div className="card card-body mb-4">
               <div style={{ fontWeight:700, marginBottom:12, fontSize:14 }}>Generate Invoice</div>
               <form onSubmit={handleNewInvoice}>
@@ -301,7 +406,7 @@ export default function Billing() {
                     <th>Paid</th>
                     <th>Balance</th>
                     <th>Status</th>
-                    {canWrite && <th>Actions</th>}
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -310,9 +415,7 @@ export default function Billing() {
                       <td>
                         <span className="mono">{inv.id}</span>
                         {inv.apptRef && (
-                          <div style={{ fontSize:10, color:'#9ca3af', marginTop:2 }}>
-                            Ref: {inv.apptRef}
-                          </div>
+                          <div style={{ fontSize:10, color:'#9ca3af', marginTop:2 }}>Ref: {inv.apptRef}</div>
                         )}
                       </td>
                       {!isPatient && <td>{inv.patient}</td>}
@@ -320,15 +423,11 @@ export default function Billing() {
                       <td>
                         {inv.amount === 0 && canWrite ? (
                           <input
-                            type="number"
-                            min="1"
-                            placeholder="Set amount"
+                            type="number" min="1" placeholder="Set amount"
                             style={{ width:100, padding:'3px 6px', fontSize:12, border:'1px solid #e8eaf0', borderRadius:6 }}
                             onBlur={e => {
                               const amt = Number(e.target.value);
-                              if (amt > 0) {
-                                setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, amount: amt } : i));
-                              }
+                              if (amt > 0) setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, amount: amt } : i));
                             }}
                           />
                         ) : (
@@ -338,136 +437,54 @@ export default function Billing() {
                       <td>${inv.paid.toLocaleString()}</td>
                       <td>${(inv.amount - inv.paid).toLocaleString()}</td>
                       <td><span className={'badge ' + sb(inv.status)}>{inv.status}</span></td>
-                      {canWrite && (
-                        <td>
-                          {inv.status !== 'Paid' && inv.amount > 0 && payId !== inv.id && (
-                            <button className="btn btn-sm" onClick={() => { setPayId(inv.id); setPayMethod(''); setCardStep('form'); }}>
-                              Process Payment
-                            </button>
-                          )}
-                          {payId === inv.id && payMethod === '' && (
-                            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                              <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-                                <input
-                                  type="number" min="1" placeholder="Amount" value={payAmount}
-                                  onChange={e => setPayAmount(e.target.value)}
-                                  style={{ width:80, padding:'4px 8px', fontSize:12, border:'1px solid #e8eaf0', borderRadius:6 }}
-                                />
-                                <button className="btn btn-sm" onClick={() => setPayMethod('cash')}>💵 Cash</button>
-                                <button className="btn btn-sm" onClick={() => setPayMethod('card')}>💳 Card</button>
-                                <button className="btn btn-sm" onClick={resetPay}>✕</button>
-                              </div>
-                            </div>
-                          )}
-                          {payId === inv.id && payMethod === 'cash' && (
-                            <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-                              <span style={{ fontSize:12, color:'#6b7280' }}>Cash: ${Number(payAmount).toLocaleString()}</span>
-                              <button className="btn btn-primary btn-sm" onClick={() => handleCash(inv.id)}>Confirm</button>
-                              <button className="btn btn-sm" onClick={resetPay}>✕</button>
-                            </div>
-                          )}
-                          {payId === inv.id && payMethod === 'card' && cardStep === 'form'       && <span style={{ fontSize:12, color:'#4f46e5' }}>Fill card form below ↓</span>}
-                          {payId === inv.id && payMethod === 'card' && cardStep === 'processing' && <span style={{ fontSize:12, color:'#d97706' }}>⏳ Processing...</span>}
-                          {payId === inv.id && payMethod === 'card' && cardStep === 'success'    && <span style={{ fontSize:12, color:'#059669' }}>✅ Authorized</span>}
-                        </td>
-                      )}
+                      <td>
+                        {inv.status !== 'Paid' && inv.amount > 0 && payId !== inv.id && (
+                          <button
+                            className="btn btn-sm"
+                            onClick={() => { setPayId(inv.id); setPayMethod(''); setCardStep('form'); }}
+                          >
+                            {isPatient ? 'Pay Now' : 'Process Payment'}
+                          </button>
+                        )}
+                        {payId === inv.id && <PaymentPanel inv={inv} />}
+                      </td>
                     </tr>
                   ))}
                   {myInvoices.length === 0 && (
-                    <tr><td colSpan="8" style={{ textAlign:'center', color:'#9ca3af', padding:24 }}>No invoices found</td></tr>
+                    <tr>
+                      <td colSpan="8" style={{ textAlign:'center', color:'#9ca3af', padding:24 }}>
+                        No invoices found
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               </table>
             </div>
           </div>
-        </div>
-      )}
 
-      {payId && payMethod === 'card' && cardStep === 'form' && (
-        <div style={{ marginTop:16 }}>
-          <div className="card card-body">
-            <div style={{ fontWeight:700, fontSize:14, marginBottom:16 }}>
-              💳 Card Payment — {invoices.find(i => i.id === payId)?.patient}
+          <CardForm />
+
+          {payId && payMethod === 'card' && cardStep === 'processing' && (
+            <div style={{ marginTop:16 }}>
+              <div className="card card-body" style={{ textAlign:'center', padding:'32px 0' }}>
+                <div style={{ fontSize:32, marginBottom:12 }}>⏳</div>
+                <div style={{ fontWeight:600, fontSize:14, marginBottom:6 }}>Processing payment...</div>
+                <div style={{ fontSize:12, color:'#8a8fa8' }}>Contacting card network. Please wait.</div>
+              </div>
             </div>
-            {cardError && (
-              <div className="alert" style={{ background:'#fef2f2', color:'#dc2626', marginBottom:12 }}>
-                ❌ {cardError}
-              </div>
-            )}
-            <form onSubmit={handleCardSubmit}>
-              <div className="form-grid">
-                <div className="form-group full">
-                  <label>Card Number</label>
-                  <input
-                    type="text" placeholder="1234 5678 9012 3456"
-                    value={card.number}
-                    onChange={e => setCard({...card, number:fmtCard(e.target.value)})}
-                    maxLength={19}
-                    style={{ fontFamily:'monospace', fontSize:15, letterSpacing:2 }}
-                    required
-                  />
-                </div>
-                <div className="form-group full">
-                  <label>Cardholder Name</label>
-                  <input
-                    type="text" placeholder="Name as it appears on card"
-                    value={card.name}
-                    onChange={e => setCard({...card, name:e.target.value})}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Expiry Date</label>
-                  <input
-                    type="text" placeholder="MM/YY"
-                    value={card.expiry}
-                    onChange={e => setCard({...card, expiry:fmtExp(e.target.value)})}
-                    maxLength={5} required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>CVV</label>
-                  <input
-                    type="password" placeholder="•••"
-                    value={card.cvv}
-                    onChange={e => setCard({...card, cvv:e.target.value.replace(/\D/g,'').slice(0,3)})}
-                    maxLength={3} required
-                  />
-                </div>
-              </div>
-              <div style={{ margin:'10px 0 14px', padding:'10px 12px', background:'#f9fafb', borderRadius:8, fontSize:12, color:'#6b7280' }}>
-                💡 Demo: use any 16-digit number, future expiry date, and any 3-digit CVV.
-              </div>
-              <div style={{ display:'flex', gap:8 }}>
-                <button type="submit" className="btn btn-primary">
-                  Authorize ${Number(payAmount).toLocaleString()}
-                </button>
-                <button type="button" className="btn" onClick={resetPay}>Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+          )}
 
-      {payId && payMethod === 'card' && cardStep === 'processing' && (
-        <div style={{ marginTop:16 }}>
-          <div className="card card-body" style={{ textAlign:'center', padding:'32px 0' }}>
-            <div style={{ fontSize:32, marginBottom:12 }}>⏳</div>
-            <div style={{ fontWeight:600, fontSize:14, marginBottom:6 }}>Processing payment...</div>
-            <div style={{ fontSize:12, color:'#8a8fa8' }}>Contacting card network. Please wait.</div>
-          </div>
-        </div>
-      )}
-
-      {payId && payMethod === 'card' && cardStep === 'success' && (
-        <div style={{ marginTop:16 }}>
-          <div className="card card-body" style={{ textAlign:'center', padding:'32px 0' }}>
-            <div style={{ fontSize:40, marginBottom:12 }}>✅</div>
-            <div style={{ fontWeight:700, fontSize:15, color:'#059669', marginBottom:6 }}>Payment Authorized</div>
-            <div style={{ fontSize:12, color:'#8a8fa8' }}>
-              ${Number(payAmount).toLocaleString()} charged to card ending in {card.number.slice(-4)}
+          {payId && payMethod === 'card' && cardStep === 'success' && (
+            <div style={{ marginTop:16 }}>
+              <div className="card card-body" style={{ textAlign:'center', padding:'32px 0' }}>
+                <div style={{ fontSize:40, marginBottom:12 }}>✅</div>
+                <div style={{ fontWeight:700, fontSize:15, color:'#059669', marginBottom:6 }}>Payment Authorized</div>
+                <div style={{ fontSize:12, color:'#8a8fa8' }}>
+                  ${Number(payAmount).toLocaleString()} charged to card ending in {card.number.slice(-4)}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
