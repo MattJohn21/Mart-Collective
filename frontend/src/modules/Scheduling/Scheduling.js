@@ -6,11 +6,11 @@ const DEPTS   = ['Cardiology','Pediatrics','Orthopedics','Neurology','Emergency'
 const TIMES   = ['8:00 AM','9:00 AM','10:00 AM','11:00 AM','1:00 PM','2:00 PM','3:00 PM','4:00 PM'];
 
 const INIT_APPOINTMENTS = [
-  { id:'APT-001', pid:'P-001', patient:'Victoria Nguyen',  doctor:'Dr. Marcus Williams', dept:'Cardiology',  date:'2026-05-09', time:'10:00 AM', status:'Confirmed' },
-  { id:'APT-002', pid:'P-002', patient:'Harold Bennett',   doctor:'Dr. Patricia Holt',   dept:'Pediatrics',  date:'2026-05-07', time:'9:00 AM',  status:'Confirmed' },
-  { id:'APT-003', pid:'P-003', patient:'Camille Fontaine', doctor:'Dr. James Okafor',    dept:'Neurology',   date:'2026-05-08', time:'2:00 PM',  status:'Pending'   },
-  { id:'APT-004', pid:'P-004', patient:'Derrick Lawson',   doctor:'Dr. Marcus Williams', dept:'Cardiology',  date:'2026-05-10', time:'11:00 AM', status:'Confirmed' },
-  { id:'APT-005', pid:'P-005', patient:'Ingrid Castellano',doctor:'Dr. James Okafor',    dept:'Oncology',    date:'2026-05-22', time:'2:30 PM',  status:'Pending'   },
+  { id:'APT-001', pid:'P-001', patient:'Victoria Nguyen',   doctor:'Dr. Marcus Williams', dept:'Cardiology', date:'2026-05-09', time:'10:00 AM', status:'Confirmed' },
+  { id:'APT-002', pid:'P-002', patient:'Harold Bennett',    doctor:'Dr. Patricia Holt',   dept:'Pediatrics', date:'2026-05-07', time:'9:00 AM',  status:'Confirmed' },
+  { id:'APT-003', pid:'P-003', patient:'Camille Fontaine',  doctor:'Dr. James Okafor',    dept:'Neurology',  date:'2026-05-08', time:'2:00 PM',  status:'Pending'   },
+  { id:'APT-004', pid:'P-004', patient:'Derrick Lawson',    doctor:'Dr. Marcus Williams', dept:'Cardiology', date:'2026-05-10', time:'11:00 AM', status:'Confirmed' },
+  { id:'APT-005', pid:'P-005', patient:'Ingrid Castellano', doctor:'Dr. James Okafor',    dept:'Oncology',   date:'2026-05-22', time:'2:30 PM',  status:'Pending'   },
 ];
 
 const INIT_PATIENTS = [
@@ -21,73 +21,122 @@ const INIT_PATIENTS = [
   { id:'P-005', name:'Ingrid Castellano' },
 ];
 
+const EMPTY_FORM = { patientId:'', doctor:'', dept:'', date:'', time:'' };
+
 export default function Scheduling() {
   const { user } = useAuth();
   const [appointments, setAppointments] = useState(INIT_APPOINTMENTS);
   const [patients]                      = useState(INIT_PATIENTS);
   const [showForm, setShowForm]         = useState(false);
-  const [form, setForm]                 = useState({ patientId:'', doctor:'', dept:'', date:'', time:'' });
+  const [editAppt, setEditAppt]         = useState(null);
+  const [form, setForm]                 = useState(EMPTY_FORM);
   const [successMsg, setSuccessMsg]     = useState('');
   const [error, setError]               = useState('');
 
   const isPatient = user?.role === 'patient';
   const isNurse   = user?.role === 'nurse';
   const canCreate = ['admin','doctor','receptionist','patient'].includes(user?.role);
-  const canEdit   = ['admin','doctor'].includes(user?.role);
+  const canEdit   = ['admin','doctor','receptionist'].includes(user?.role);
 
-  const myAppts = isPatient ? appointments.filter(a => a.pid === 'P-001') : appointments;
+  const myAppts = isPatient
+    ? appointments.filter(a => a.pid === 'P-001')
+    : appointments;
 
-  const handleBook = (e) => {
+  const flash = (msg) => {
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(''), 5000);
+  };
+
+  const openBookForm = () => {
+    setEditAppt(null);
+    setForm(EMPTY_FORM);
+    setError('');
+    setShowForm(true);
+  };
+
+  const openEditForm = (appt) => {
+    setEditAppt(appt);
+    setForm({
+      patientId: appt.pid,
+      doctor: appt.doctor,
+      dept: appt.dept,
+      date: appt.date,
+      time: appt.time,
+    });
+    setError('');
+    setShowForm(true);
+  };
+
+  const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
-    const patient = patients.find(p => p.id === form.patientId);
-    if (!patient) { setError('Please select a registered patient.'); return; }
-    const newAppt = {
-      id: `APT-00${appointments.length + 1}`,
-      pid: form.patientId,
-      patient: patient.name,
-      doctor: form.doctor,
-      dept: form.dept,
-      date: form.date,
-      time: form.time,
-      status: isPatient ? 'Pending' : 'Confirmed',
-    };
-    setAppointments(prev => [newAppt, ...prev]);
-    setSuccessMsg(`✅ Appointment booked for ${patient.name} with ${form.doctor} on ${form.date}`);
+    const pid         = isPatient ? 'P-001' : form.patientId;
+    const patientName = isPatient ? 'Victoria Nguyen' : patients.find(p => p.id === pid)?.name;
+    if (!pid || !patientName) { setError('Please select a registered patient.'); return; }
+
+    if (editAppt) {
+      setAppointments(prev => prev.map(a => a.id === editAppt.id
+        ? { ...a, doctor: form.doctor, dept: form.dept, date: form.date, time: form.time, status: 'Confirmed' }
+        : a
+      ));
+      flash(`✅ Appointment ${editAppt.id} rescheduled to ${form.date} at ${form.time}.`);
+    } else {
+      const newAppt = {
+        id: `APT-00${appointments.length + 1}`,
+        pid,
+        patient: patientName,
+        doctor: form.doctor,
+        dept: form.dept,
+        date: form.date,
+        time: form.time,
+        status: isPatient ? 'Pending' : 'Confirmed',
+      };
+      setAppointments(prev => [newAppt, ...prev]);
+      flash(`✅ Appointment booked for ${patientName} with ${form.doctor} on ${form.date}.`);
+    }
     setShowForm(false);
-    setForm({ patientId:'', doctor:'', dept:'', date:'', time:'' });
-    setTimeout(() => setSuccessMsg(''), 5000);
+    setEditAppt(null);
+    setForm(EMPTY_FORM);
   };
 
   const updateStatus = (id, status) => {
     setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+    flash(`✅ Appointment ${id} marked as ${status}.`);
   };
 
   const cancel = (id) => {
-    if (!window.confirm('Cancel this appointment?')) return;
+    if (!window.confirm('Cancel this appointment? This cannot be undone.')) return;
     setAppointments(prev => prev.filter(a => a.id !== id));
+    flash(`Appointment ${id} has been cancelled.`);
   };
 
-  const statusBadge = (s) => s === 'Confirmed' ? 'badge-success' : s === 'Pending' ? 'badge-warning' : 'badge-neutral';
+  const statusBadge = (s) =>
+    s === 'Confirmed' ? 'badge-success' : s === 'Pending' ? 'badge-warning' : s === 'Completed' ? 'badge-neutral' : 'badge-danger';
 
   return (
     <div>
-      {isPatient && <div className="alert alert-info">📅 Showing your appointments only.</div>}
+      {isPatient && <div className="alert alert-info">📅 Showing your appointments. Requested appointments are pending confirmation.</div>}
       {isNurse   && <div className="alert alert-warning">⚠️ View only. Doctors, receptionists, and admins can modify appointments.</div>}
       {successMsg && <div className="alert alert-info">{successMsg}</div>}
 
       <div className="section-header">
         <span className="section-title">{isPatient ? 'Your Appointments' : 'All Appointments'}</span>
-        {canCreate && <button className="btn btn-primary btn-sm" onClick={() => setShowForm(!showForm)}>+ {isPatient ? 'Request' : 'Book'} Appointment</button>}
+        {canCreate && !showForm && (
+          <button className="btn btn-primary btn-sm" onClick={openBookForm}>
+            + {isPatient ? 'Request' : 'Book'} Appointment
+          </button>
+        )}
       </div>
 
       {showForm && (
         <div className="card card-body mb-4">
-          <div style={{ fontWeight:700, marginBottom:12, fontSize:14 }}>Book Appointment</div>
-          {error && <div className="alert alert-danger" style={{ background:'#fef2f2', color:'#dc2626', marginBottom:10 }}>❌ {error}</div>}
-          <form onSubmit={handleBook}>
+          <div style={{ fontWeight:700, marginBottom:12, fontSize:14 }}>
+            {editAppt ? `Reschedule ${editAppt.id}` : isPatient ? 'Request Appointment' : 'Book Appointment'}
+          </div>
+          {error && <div className="alert" style={{ background:'#fef2f2', color:'#dc2626', marginBottom:10 }}>❌ {error}</div>}
+          <form onSubmit={handleSubmit}>
             <div className="form-grid">
-              {!isPatient && (
+              {!isPatient && !editAppt && (
                 <div className="form-group">
                   <label>Patient</label>
                   <select value={form.patientId} onChange={e => setForm({...form, patientId:e.target.value})} required>
@@ -123,8 +172,10 @@ export default function Scheduling() {
               </div>
             </div>
             <div style={{ display:'flex', gap:8, marginTop:12 }}>
-              <button type="submit" className="btn btn-primary">Confirm Booking</button>
-              <button type="button" className="btn" onClick={() => setShowForm(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary">
+                {editAppt ? 'Save Changes' : isPatient ? 'Submit Request' : 'Confirm Booking'}
+              </button>
+              <button type="button" className="btn" onClick={() => { setShowForm(false); setEditAppt(null); }}>Cancel</button>
             </div>
           </form>
         </div>
@@ -142,7 +193,7 @@ export default function Scheduling() {
                 <th>Date</th>
                 <th>Time</th>
                 <th>Status</th>
-                {canEdit && <th>Actions</th>}
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -155,18 +206,27 @@ export default function Scheduling() {
                   <td>{a.date}</td>
                   <td>{a.time}</td>
                   <td><span className={`badge ${statusBadge(a.status)}`}>{a.status}</span></td>
-                  {canEdit && (
-                    <td>
-                      <div className="flex gap-8">
-                        {a.status === 'Pending'    && <button className="btn btn-sm" onClick={() => updateStatus(a.id,'Confirmed')}>Confirm</button>}
-                        {a.status === 'Confirmed'  && <button className="btn btn-sm" onClick={() => updateStatus(a.id,'Completed')}>Complete</button>}
+                  <td>
+                    <div className="flex gap-8">
+                      {canEdit && a.status !== 'Completed' && (
+                        <button className="btn btn-sm" onClick={() => openEditForm(a)}>Reschedule</button>
+                      )}
+                      {canEdit && a.status === 'Pending' && (
+                        <button className="btn btn-sm" onClick={() => updateStatus(a.id,'Confirmed')}>Confirm</button>
+                      )}
+                      {canEdit && a.status === 'Confirmed' && (
+                        <button className="btn btn-sm" onClick={() => updateStatus(a.id,'Completed')}>Complete</button>
+                      )}
+                      {(canEdit || (isPatient && a.status === 'Pending')) && (
                         <button className="btn btn-danger btn-sm" onClick={() => cancel(a.id)}>Cancel</button>
-                      </div>
-                    </td>
-                  )}
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
-              {myAppts.length === 0 && <tr><td colSpan="8" style={{ textAlign:'center', color:'#9ca3af', padding:24 }}>No appointments found</td></tr>}
+              {myAppts.length === 0 && (
+                <tr><td colSpan="8" style={{ textAlign:'center', color:'#9ca3af', padding:24 }}>No appointments found</td></tr>
+              )}
             </tbody>
           </table>
         </div>
