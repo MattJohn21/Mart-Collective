@@ -1,83 +1,116 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 
+const INIT_INVOICES = [
+  { id:'INV-1042', pid:'P-001', patient:'Victoria Nguyen',   date:'2026-04-28', amount:1250, paid:930,  status:'Partial' },
+  { id:'INV-1043', pid:'P-002', patient:'Harold Bennett',    date:'2026-05-01', amount:800,  paid:800,  status:'Paid'    },
+  { id:'INV-1044', pid:'P-003', patient:'Camille Fontaine',  date:'2026-05-02', amount:600,  paid:450,  status:'Partial' },
+  { id:'INV-1045', pid:'P-004', patient:'Derrick Lawson',    date:'2026-05-04', amount:2100, paid:0,    status:'Unpaid'  },
+  { id:'INV-1046', pid:'P-005', patient:'Ingrid Castellano', date:'2026-05-05', amount:3400, paid:2900, status:'Partial' },
+];
+
+const PATIENTS = [
+  { id:'P-001', name:'Victoria Nguyen'   },
+  { id:'P-002', name:'Harold Bennett'    },
+  { id:'P-003', name:'Camille Fontaine'  },
+  { id:'P-004', name:'Derrick Lawson'    },
+  { id:'P-005', name:'Ingrid Castellano' },
+];
+
 export default function Billing() {
-  const { user, hasPermission } = useAuth();
-  const [invoices, setInvoices]   = useState([]);
-  const [summary, setSummary]     = useState(null);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState('');
+  const { user } = useAuth();
+  const [invoices, setInvoices]       = useState(INIT_INVOICES);
+  const [showForm, setShowForm]       = useState(false);
+  const [form, setForm]               = useState({ patientId:'', amount:'' });
+  const [payId, setPayId]             = useState(null);
+  const [payAmount, setPayAmount]     = useState('');
+  const [successMsg, setSuccessMsg]   = useState('');
+
   const isPatient = user?.role === 'patient';
-  const canWrite  = hasPermission('billing', 'write');
+  const canWrite  = ['admin','billing'].includes(user?.role);
+  const myInvoices = isPatient ? invoices.filter(i => i.pid === 'P-001') : invoices;
+  const total      = myInvoices.reduce((s,i) => s + i.amount, 0);
+  const collected  = myInvoices.reduce((s,i) => s + i.paid, 0);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [invRes] = await Promise.all([axios.get('/api/billing')]);
-        setInvoices(invRes.data);
-        if (!isPatient) {
-          const sumRes = await axios.get('/api/billing/summary');
-          setSummary(sumRes.data);
-        }
-      } catch (e) {
-        setError('Failed to load billing data.');
-      } finally {
-        setLoading(false);
-      }
+  const handleNewInvoice = (e) => {
+    e.preventDefault();
+    const patient = PATIENTS.find(p => p.id === form.patientId);
+    if (!patient) return;
+    const newInv = {
+      id: `INV-${1047 + invoices.length}`,
+      pid: form.patientId,
+      patient: patient.name,
+      date: new Date().toISOString().split('T')[0],
+      amount: Number(form.amount),
+      paid: 0,
+      status: 'Unpaid',
     };
-    fetchData();
-  }, [isPatient]);
-
-  const handlePay = async (id) => {
-    const amount = prompt('Enter payment amount:');
-    if (!amount || isNaN(amount)) return;
-    try {
-      const res = await axios.patch(`/api/billing/${id}/pay`, { amount: Number(amount) });
-      setInvoices(prev => prev.map(i => i.id === id ? res.data : i));
-    } catch (e) {
-      alert(e.response?.data?.error || 'Payment failed');
-    }
+    setInvoices(prev => [newInv, ...prev]);
+    setSuccessMsg(`✅ Invoice ${newInv.id} created for ${patient.name}`);
+    setShowForm(false);
+    setForm({ patientId:'', amount:'' });
+    setTimeout(() => setSuccessMsg(''), 5000);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this invoice?')) return;
-    try {
-      await axios.delete(`/api/billing/${id}`);
-      setInvoices(prev => prev.filter(i => i.id !== id));
-    } catch (e) {
-      alert(e.response?.data?.error || 'Delete failed');
-    }
+  const handlePay = (id) => {
+    const amt = Number(payAmount);
+    if (!amt || amt <= 0) return;
+    setInvoices(prev => prev.map(i => {
+      if (i.id !== id) return i;
+      const newPaid = Math.min(i.paid + amt, i.amount);
+      return { ...i, paid: newPaid, status: newPaid >= i.amount ? 'Paid' : 'Partial' };
+    }));
+    setSuccessMsg(`✅ Payment of $${amt.toLocaleString()} recorded.`);
+    setPayId(null);
+    setPayAmount('');
+    setTimeout(() => setSuccessMsg(''), 5000);
   };
 
-  if (loading) return <div className="loading">Loading billing data...</div>;
-
-  const statusBadge = (s) =>
-    s === 'Paid' ? 'badge-success' : s === 'Partial' ? 'badge-warning' : 'badge-danger';
+  const statusBadge = (s) => s === 'Paid' ? 'badge-success' : s === 'Partial' ? 'badge-warning' : 'badge-danger';
 
   return (
     <div>
-      {isPatient && (
-        <div className="alert alert-info">
-          🔒 You can view your invoices. To dispute a charge, contact billing staff.
-        </div>
-      )}
+      {isPatient && <div className="alert alert-info">🔒 Showing your invoices only. Contact billing staff for payment arrangements.</div>}
+      {successMsg && <div className="alert alert-info">{successMsg}</div>}
 
-      {!isPatient && summary && (
+      {!isPatient && (
         <div className="stats-row">
-          <div className="stat-card"><div className="stat-label">Total Billed</div><div className="stat-value">${summary.total.toLocaleString()}</div></div>
-          <div className="stat-card"><div className="stat-label">Collected</div><div className="stat-value">${summary.collected.toLocaleString()}</div></div>
-          <div className="stat-card"><div className="stat-label">Outstanding</div><div className="stat-value">${summary.outstanding.toLocaleString()}</div></div>
-          <div className="stat-card"><div className="stat-label">Unpaid Invoices</div><div className="stat-value">{summary.overdue}</div></div>
+          <div className="stat-card"><div className="stat-label">Total Billed</div><div className="stat-value">${total.toLocaleString()}</div></div>
+          <div className="stat-card"><div className="stat-label">Collected</div><div className="stat-value">${collected.toLocaleString()}</div></div>
+          <div className="stat-card"><div className="stat-label">Outstanding</div><div className="stat-value">${(total - collected).toLocaleString()}</div></div>
+          <div className="stat-card"><div className="stat-label">Unpaid</div><div className="stat-value">{myInvoices.filter(i => i.status === 'Unpaid').length}</div></div>
         </div>
       )}
 
       <div className="section-header">
         <span className="section-title">{isPatient ? 'Your Invoices' : 'All Invoices'}</span>
-        {canWrite && (
-          <button className="btn btn-primary btn-sm">+ New Invoice</button>
-        )}
+        {canWrite && <button className="btn btn-primary btn-sm" onClick={() => setShowForm(!showForm)}>+ New Invoice</button>}
       </div>
+
+      {showForm && (
+        <div className="card card-body mb-4">
+          <div style={{ fontWeight:700, marginBottom:12, fontSize:14 }}>Generate Invoice</div>
+          <form onSubmit={handleNewInvoice}>
+            <div className="form-grid">
+              <div className="form-group">
+                <label>Patient</label>
+                <select value={form.patientId} onChange={e => setForm({...form, patientId:e.target.value})} required>
+                  <option value="">Select patient</option>
+                  {PATIENTS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Amount ($)</label>
+                <input type="number" min="1" placeholder="e.g. 500" value={form.amount} onChange={e => setForm({...form, amount:e.target.value})} required />
+              </div>
+            </div>
+            <div style={{ display:'flex', gap:8, marginTop:12 }}>
+              <button type="submit" className="btn btn-primary">Generate Invoice</button>
+              <button type="button" className="btn" onClick={() => setShowForm(false)}>Cancel</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <div className="card">
         <div className="table-wrap">
@@ -86,16 +119,12 @@ export default function Billing() {
               <tr>
                 <th>Invoice ID</th>
                 {!isPatient && <th>Patient</th>}
-                <th>Date</th>
-                <th>Amount</th>
-                <th>Paid</th>
-                <th>Balance</th>
-                <th>Status</th>
+                <th>Date</th><th>Amount</th><th>Paid</th><th>Balance</th><th>Status</th>
                 {canWrite && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
-              {invoices.map(inv => (
+              {myInvoices.map(inv => (
                 <tr key={inv.id}>
                   <td className="mono">{inv.id}</td>
                   {!isPatient && <td>{inv.patient}</td>}
@@ -106,12 +135,15 @@ export default function Billing() {
                   <td><span className={`badge ${statusBadge(inv.status)}`}>{inv.status}</span></td>
                   {canWrite && (
                     <td>
-                      <div className="flex gap-8">
-                        {inv.status !== 'Paid' && (
-                          <button className="btn btn-sm" onClick={() => handlePay(inv.id)}>Pay</button>
-                        )}
-                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(inv.id)}>Delete</button>
-                      </div>
+                      {payId === inv.id ? (
+                        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                          <input type="number" min="1" placeholder="Amount" value={payAmount} onChange={e => setPayAmount(e.target.value)} style={{ width:80, padding:'4px 8px', fontSize:12, border:'1px solid #e8eaf0', borderRadius:6 }} />
+                          <button className="btn btn-primary btn-sm" onClick={() => handlePay(inv.id)}>Pay</button>
+                          <button className="btn btn-sm" onClick={() => { setPayId(null); setPayAmount(''); }}>✕</button>
+                        </div>
+                      ) : (
+                        inv.status !== 'Paid' && <button className="btn btn-sm" onClick={() => setPayId(inv.id)}>Process Payment</button>
+                      )}
                     </td>
                   )}
                 </tr>
