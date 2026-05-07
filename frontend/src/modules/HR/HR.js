@@ -30,8 +30,10 @@ export default function HR() {
     localStorage.setItem('mc_staff', JSON.stringify(staff));
   }, [staff]);
 
-  const isAdmin  = user?.role === 'admin';
-  const canWrite = ['admin','hr'].includes(user?.role);
+  const isAdmin    = user?.role === 'admin';
+  const isHR       = user?.role === 'hr';
+  const canWrite   = isAdmin || isHR;
+  const canSalary  = isAdmin;
 
   const active  = staff.filter(s => s.status === 'Active').length;
   const onLeave = staff.filter(s => s.status === 'Leave').length;
@@ -51,22 +53,22 @@ export default function HR() {
       return;
     }
     const newEmployee = {
-      id:     `E-${208 + staff.length}`,
+      id:     'E-' + (208 + staff.length),
       name:   form.name,
       role:   form.role,
       dept:   form.dept,
       status: form.status,
-      salary: Number(form.salary) || 0,
+      salary: canSalary ? Number(form.salary) || 0 : 0,
       start:  form.start || new Date().toISOString().split('T')[0],
     };
     setStaff(prev => [newEmployee, ...prev]);
-    flash(`✅ ${form.name} added to staff directory.`);
+    flash('✅ ' + form.name + ' added to staff directory.');
     setShowForm(false);
     setForm(EMPTY_STAFF);
   };
 
-  const handleDelete = (id) => {
-    if (!window.confirm('Remove this employee from the directory?')) return;
+  const handleDelete = (id, name) => {
+    if (!window.confirm('Remove ' + name + ' from the directory?')) return;
     setStaff(prev => prev.filter(s => s.id !== id));
     flash('Employee removed from directory.');
   };
@@ -77,42 +79,30 @@ export default function HR() {
 
   return (
     <div>
-      {!isAdmin && (
+      {isHR && !isAdmin && (
         <div className="alert alert-warning">
-          ⚠️ Salary information is visible to Administrators only.
+          ⚠️ Salary details are visible to Administrators only. You can add and remove staff.
         </div>
       )}
       {successMsg && <div className="alert alert-info">{successMsg}</div>}
 
       <div className="stats-row">
-        <div className="stat-card">
-          <div className="stat-label">Total Staff</div>
-          <div className="stat-value">{staff.length}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Active</div>
-          <div className="stat-value">{active}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">On Leave</div>
-          <div className="stat-value">{onLeave}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Doctors / Nurses</div>
-          <div className="stat-value">{doctors} / {nurses}</div>
-        </div>
+        <div className="stat-card"><div className="stat-label">Total Staff</div><div className="stat-value">{staff.length}</div></div>
+        <div className="stat-card"><div className="stat-label">Active</div><div className="stat-value">{active}</div></div>
+        <div className="stat-card"><div className="stat-label">On Leave</div><div className="stat-value">{onLeave}</div></div>
+        <div className="stat-card"><div className="stat-label">Doctors / Nurses</div><div className="stat-value">{doctors} / {nurses}</div></div>
       </div>
 
       <div className="section-header">
         <span className="section-title">Staff Directory</span>
-        {isAdmin && (
+        {canWrite && (
           <button className="btn btn-primary btn-sm" onClick={() => setShowForm(!showForm)}>
             + Add Employee
           </button>
         )}
       </div>
 
-      {showForm && isAdmin && (
+      {showForm && canWrite && (
         <div className="card card-body mb-4">
           <div style={{ fontWeight:700, marginBottom:12, fontSize:14 }}>Add New Employee</div>
           {error && (
@@ -134,11 +124,7 @@ export default function HR() {
               </div>
               <div className="form-group">
                 <label>Role</label>
-                <select
-                  value={form.role}
-                  onChange={e => setForm({...form, role:e.target.value})}
-                  required
-                >
+                <select value={form.role} onChange={e => setForm({...form, role:e.target.value})} required>
                   <option value="">Select role</option>
                   <option>Doctor</option>
                   <option>Nurse</option>
@@ -150,11 +136,7 @@ export default function HR() {
               </div>
               <div className="form-group">
                 <label>Department</label>
-                <select
-                  value={form.dept}
-                  onChange={e => setForm({...form, dept:e.target.value})}
-                  required
-                >
+                <select value={form.dept} onChange={e => setForm({...form, dept:e.target.value})} required>
                   <option value="">Select department</option>
                   <option>Cardiology</option>
                   <option>Pediatrics</option>
@@ -169,24 +151,23 @@ export default function HR() {
               </div>
               <div className="form-group">
                 <label>Status</label>
-                <select
-                  value={form.status}
-                  onChange={e => setForm({...form, status:e.target.value})}
-                >
+                <select value={form.status} onChange={e => setForm({...form, status:e.target.value})}>
                   <option>Active</option>
                   <option>Leave</option>
                 </select>
               </div>
-              <div className="form-group">
-                <label>Salary ($)</label>
-                <input
-                  type="number"
-                  min="0"
-                  placeholder="e.g. 85000"
-                  value={form.salary}
-                  onChange={e => setForm({...form, salary:e.target.value})}
-                />
-              </div>
+              {canSalary && (
+                <div className="form-group">
+                  <label>Salary ($)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 85000"
+                    value={form.salary}
+                    onChange={e => setForm({...form, salary:e.target.value})}
+                  />
+                </div>
+              )}
               <div className="form-group">
                 <label>Start Date</label>
                 <input
@@ -198,8 +179,15 @@ export default function HR() {
             </div>
             <div style={{ display:'flex', gap:8, marginTop:12 }}>
               <button type="submit" className="btn btn-primary">Add Employee</button>
-              <button type="button" className="btn" onClick={() => { setShowForm(false); setForm(EMPTY_STAFF); }}>Cancel</button>
+              <button type="button" className="btn" onClick={() => { setShowForm(false); setForm(EMPTY_STAFF); }}>
+                Cancel
+              </button>
             </div>
+            {isHR && !isAdmin && (
+              <div style={{ marginTop:10, fontSize:12, color:'#9ca3af' }}>
+                ℹ️ Salary field is only visible to administrators.
+              </div>
+            )}
           </form>
         </div>
       )}
@@ -213,7 +201,7 @@ export default function HR() {
                 <th>Name</th>
                 <th>Role</th>
                 <th>Department</th>
-                {isAdmin && <th>Salary</th>}
+                {canSalary && <th>Salary</th>}
                 <th>Start Date</th>
                 <th>Status</th>
                 {canWrite && <th>Actions</th>}
@@ -224,28 +212,34 @@ export default function HR() {
                 <tr key={emp.id}>
                   <td className="mono">{emp.id}</td>
                   <td>{emp.name}</td>
-                  <td><span className={`badge ${roleBadge(emp.role)}`}>{emp.role}</span></td>
+                  <td><span className={'badge ' + roleBadge(emp.role)}>{emp.role}</span></td>
                   <td>{emp.dept}</td>
-                  {isAdmin && <td>${emp.salary.toLocaleString()}</td>}
+                  {canSalary && <td>${emp.salary.toLocaleString()}</td>}
                   <td>{emp.start}</td>
                   <td>
-                    <span className={`badge ${emp.status === 'Active' ? 'badge-success' : 'badge-neutral'}`}>
+                    <span className={'badge ' + (emp.status === 'Active' ? 'badge-success' : 'badge-neutral')}>
                       {emp.status}
                     </span>
                   </td>
                   {canWrite && (
                     <td>
-                      <div className="flex gap-8">
-                        {isAdmin && (
-                          <button className="btn btn-danger btn-sm" onClick={() => handleDelete(emp.id)}>
-                            Remove
-                          </button>
-                        )}
-                      </div>
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleDelete(emp.id, emp.name)}
+                      >
+                        Remove
+                      </button>
                     </td>
                   )}
                 </tr>
               ))}
+              {staff.length === 0 && (
+                <tr>
+                  <td colSpan="8" style={{ textAlign:'center', color:'#9ca3af', padding:24 }}>
+                    No staff found
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
