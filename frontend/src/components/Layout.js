@@ -34,7 +34,7 @@ export default function Layout() {
     <div className="app-layout">
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <h1>🏥 Mart Collective</h1>
+          <h1>🏥 MART Collective</h1>
           <span>Healthcare Management System</span>
         </div>
 
