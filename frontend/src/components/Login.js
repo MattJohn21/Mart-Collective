@@ -71,7 +71,7 @@ export default function Login() {
   return (
     <div className="login-page">
       <div className="login-card">
-        <h1>🏥 Mart Collective HMS</h1>
+        <h1>🏥 MART Collective HMS</h1>
         <p>Integrated Healthcare Management — Sign in to continue</p>
         {error && <div className="login-error">{error}</div>}
         <form onSubmit={handleSubmit}>
