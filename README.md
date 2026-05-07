@@ -2,15 +2,6 @@
 
 A full-stack healthcare management system with role-based access control built with React + Node/Express.
 
-## Modules
-| Module | Admin | Doctor | Nurse | HR Staff | Patient |
-|--------|-------|--------|-------|----------|---------|
-| Dashboard | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Billing | ✅ Full | ❌ | ❌ | ❌ | ✅ Own only |
-| Human Resources | ✅ Full + Salary | ❌ | ❌ | ✅ No salary | ❌ |
-| Scheduling | ✅ Full | ✅ Own patients | ✅ View only | ❌ | ✅ Own only |
-| Registration | ✅ Full | ✅ Read + Write | ✅ View only | ❌ | ❌ |
-
 ## Demo Accounts
 | Role | Email | Password |
 |------|-------|----------|
