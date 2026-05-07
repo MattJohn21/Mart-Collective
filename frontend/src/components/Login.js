@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 const MOCK_USERS = {
-  'admin@mart-collective.com':        { password: 'admin123',        name: 'Dr. Evelyn Carter',   role: 'admin'        },
-  'doctor@mart-collective.com':       { password: 'doctor123',       name: 'Dr. Marcus Williams', role: 'doctor'       },
-  'nurse@mart-collective.com':        { password: 'nurse123',        name: 'Natalie Osei',        role: 'nurse'        },
-  'receptionist@mart-collective.com': { password: 'receptionist123', name: 'Jordan Hargrove',     role: 'receptionist' },
-  'billing@mart-collective.com':      { password: 'billing123',      name: 'Simone Caldwell',     role: 'billing'      },
-  'hr@mart-collective.com':           { password: 'hr123',           name: 'Raymond Ellison',     role: 'hr'           },
-  'patient@mart-collective.com':      { password: 'patient123',      name: 'Victoria Nguyen',     role: 'patient'      },
+  'admin@mart-collective.com':        { password: 'admin123',        role: 'admin'        },
+  'doctor@mart-collective.com':       { password: 'doctor123',       role: 'doctor'       },
+  'nurse@mart-collective.com':        { password: 'nurse123',        role: 'nurse'        },
+  'receptionist@mart-collective.com': { password: 'receptionist123', role: 'receptionist' },
+  'billing@mart-collective.com':      { password: 'billing123',      role: 'billing'      },
+  'hr@mart-collective.com':           { password: 'hr123',           role: 'hr'           },
+  'patient@mart-collective.com':      { password: 'patient123',      role: 'patient'      },
 };
 
 const PERMISSIONS = {
@@ -21,14 +21,19 @@ const PERMISSIONS = {
   patient:      { modules: ['dashboard','billing','scheduling'], billing: ['read_own'], scheduling: ['read_own','request'] },
 };
 
+const ROLE_LABELS = {
+  admin: 'Administrator', doctor: 'Doctor', nurse: 'Nurse',
+  receptionist: 'Receptionist', billing: 'Billing Staff', hr: 'HR Staff', patient: 'Patient',
+};
+
 const DEMO_ACCOUNTS = [
-  { email: 'admin@mart-collective.com',        role: 'Administrator' },
-  { email: 'doctor@mart-collective.com',       role: 'Doctor'        },
-  { email: 'nurse@mart-collective.com',        role: 'Nurse'         },
-  { email: 'receptionist@mart-collective.com', role: 'Receptionist'  },
-  { email: 'billing@mart-collective.com',      role: 'Billing Staff' },
-  { email: 'hr@mart-collective.com',           role: 'HR Staff'      },
-  { email: 'patient@mart-collective.com',      role: 'Patient'       },
+  'admin@mart-collective.com',
+  'doctor@mart-collective.com',
+  'nurse@mart-collective.com',
+  'receptionist@mart-collective.com',
+  'billing@mart-collective.com',
+  'hr@mart-collective.com',
+  'patient@mart-collective.com',
 ];
 
 export default function Login() {
@@ -45,23 +50,21 @@ export default function Login() {
     setTimeout(() => {
       const found = MOCK_USERS[email.toLowerCase().trim()];
       if (!found || found.password !== password) {
-        setError('Invalid credentials. Click a demo account below to fill in.');
+        setError('Invalid email or password.');
         setLoading(false);
         return;
       }
-      const user = { id: Date.now(), name: found.name, email, role: found.role };
-      const permissions = PERMISSIONS[found.role];
+      const user = { id: Date.now(), email, role: found.role, name: ROLE_LABELS[found.role] };
       localStorage.setItem('mc_user', JSON.stringify(user));
-      localStorage.setItem('mc_permissions', JSON.stringify(permissions));
-      login(user, permissions);
+      localStorage.setItem('mc_permissions', JSON.stringify(PERMISSIONS[found.role]));
+      login(user, PERMISSIONS[found.role]);
       setLoading(false);
     }, 500);
   };
 
-  const fillDemo = (account) => {
-    const found = MOCK_USERS[account.email];
-    setEmail(account.email);
-    setPassword(found.password);
+  const fillDemo = (email) => {
+    setEmail(email);
+    setPassword(MOCK_USERS[email].password);
     setError('');
   };
 
@@ -80,16 +83,16 @@ export default function Login() {
             <label>Password</label>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
           </div>
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={loading}>
+          <button type="submit" className="btn btn-primary" style={{ width:'100%', justifyContent:'center' }} disabled={loading}>
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
         <div className="demo-accounts">
           <h3>Demo Accounts — click to fill</h3>
-          {DEMO_ACCOUNTS.map(a => (
-            <div key={a.role} className="demo-item" onClick={() => fillDemo(a)}>
-              <strong>{a.role}</strong>
-              <span>{MOCK_USERS[a.email].name}</span>
+          {DEMO_ACCOUNTS.map(email => (
+            <div key={email} className="demo-item" onClick={() => fillDemo(email)}>
+              <strong>{ROLE_LABELS[MOCK_USERS[email].role]}</strong>
+              <span>{email}</span>
             </div>
           ))}
         </div>
