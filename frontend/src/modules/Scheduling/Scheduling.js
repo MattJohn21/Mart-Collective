@@ -31,12 +31,12 @@ export default function Scheduling() {
     return saved ? JSON.parse(saved) : INIT_APPOINTMENTS;
   });
 
-  const [patients] = useState(INIT_PATIENTS);
-  const [showForm, setShowForm]     = useState(false);
-  const [editAppt, setEditAppt]     = useState(null);
-  const [form, setForm]             = useState(EMPTY_FORM);
-  const [successMsg, setSuccessMsg] = useState('');
-  const [error, setError]           = useState('');
+  const [patients]                      = useState(INIT_PATIENTS);
+  const [showForm, setShowForm]         = useState(false);
+  const [editAppt, setEditAppt]         = useState(null);
+  const [form, setForm]                 = useState(EMPTY_FORM);
+  const [successMsg, setSuccessMsg]     = useState('');
+  const [error, setError]               = useState('');
 
   useEffect(() => {
     localStorage.setItem('mc_appointments', JSON.stringify(appointments));
@@ -82,33 +82,32 @@ export default function Scheduling() {
     setError('');
 
     if (isPatient && !form.patientName.trim()) {
-      setError('Please enter your full name.');
-      return;
+      setError('Please enter your full name.'); return;
     }
-    if (!isPatient && !form.patientId) {
-      setError('Please select a registered patient.');
-      return;
+    if (!isPatient && !editAppt && !form.patientId) {
+      setError('Please select a registered patient.'); return;
     }
     if (!form.doctor || !form.dept || !form.date || !form.time) {
-      setError('Please fill in all fields.');
-      return;
+      setError('Please fill in all fields.'); return;
     }
 
     const pid         = isPatient ? 'P-001' : form.patientId;
     const patientName = isPatient
       ? form.patientName.trim()
-      : patients.find(p => p.id === form.patientId)?.name;
+      : editAppt
+        ? editAppt.patient
+        : patients.find(p => p.id === form.patientId)?.name;
 
     if (editAppt) {
       setAppointments(prev => prev.map(a =>
         a.id === editAppt.id
-          ? { ...a, patient: patientName, doctor: form.doctor, dept: form.dept, date: form.date, time: form.time, status: isPatient ? a.status : 'Confirmed' }
+          ? { ...a, patient: patientName, doctor: form.doctor, dept: form.dept, date: form.date, time: form.time, status: isPatient ? 'Pending' : 'Confirmed' }
           : a
       ));
-      flash(`✅ Appointment ${editAppt.id} rescheduled to ${form.date} at ${form.time}.`);
+      flash('✅ Appointment ' + editAppt.id + ' rescheduled to ' + form.date + ' at ' + form.time + (isPatient ? ' — pending staff confirmation.' : '.'));
     } else {
       const newAppt = {
-        id:      `APT-${String(appointments.length + 1).padStart(3,'0')}`,
+        id:      'APT-' + String(appointments.length + 1).padStart(3,'0'),
         pid,
         patient: patientName,
         doctor:  form.doctor,
@@ -118,7 +117,7 @@ export default function Scheduling() {
         status:  isPatient ? 'Pending' : 'Confirmed',
       };
       setAppointments(prev => [newAppt, ...prev]);
-      flash(`✅ Appointment booked for ${patientName} with ${form.doctor} on ${form.date}.`);
+      flash('✅ Appointment booked for ' + patientName + ' with ' + form.doctor + ' on ' + form.date + (isPatient ? ' — pending confirmation.' : '.'));
     }
 
     setShowForm(false);
@@ -128,13 +127,16 @@ export default function Scheduling() {
 
   const updateStatus = (id, status) => {
     setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
-    flash(`✅ Appointment ${id} marked as ${status}.`);
+    flash('✅ Appointment ' + id + ' marked as ' + status + '.');
   };
 
-  const cancel = (id) => {
-    if (!window.confirm('Cancel this appointment? This cannot be undone.')) return;
+  const cancel = (id, isPatientCancel) => {
+    const msg = isPatientCancel
+      ? 'Cancel this appointment? This cannot be undone.'
+      : 'Cancel this appointment? This cannot be undone.';
+    if (!window.confirm(msg)) return;
     setAppointments(prev => prev.filter(a => a.id !== id));
-    flash(`Appointment ${id} has been cancelled.`);
+    flash('Appointment ' + id + ' has been cancelled.');
   };
 
   const statusBadge = (s) =>
@@ -144,12 +146,22 @@ export default function Scheduling() {
 
   return (
     <div>
-      {isPatient && <div className="alert alert-info">📅 Showing your appointments. Requested appointments are pending confirmation.</div>}
-      {isNurse   && <div className="alert alert-warning">⚠️ View only. Doctors, receptionists, and admins can modify appointments.</div>}
+      {isPatient && (
+        <div className="alert alert-info">
+          📅 Showing your appointments. You can request, reschedule, or cancel pending and confirmed appointments.
+        </div>
+      )}
+      {isNurse && (
+        <div className="alert alert-warning">
+          ⚠️ View only. Doctors, receptionists, and admins can modify appointments.
+        </div>
+      )}
       {successMsg && <div className="alert alert-info">{successMsg}</div>}
 
       <div className="section-header">
-        <span className="section-title">{isPatient ? 'Your Appointments' : 'All Appointments'}</span>
+        <span className="section-title">
+          {isPatient ? 'Your Appointments' : 'All Appointments'}
+        </span>
         {canCreate && !showForm && (
           <button className="btn btn-primary btn-sm" onClick={openBookForm}>
             + {isPatient ? 'Request' : 'Book'} Appointment
@@ -160,7 +172,9 @@ export default function Scheduling() {
       {showForm && (
         <div className="card card-body mb-4">
           <div style={{ fontWeight:700, marginBottom:12, fontSize:14 }}>
-            {editAppt ? `Reschedule ${editAppt.id}` : isPatient ? 'Request Appointment' : 'Book Appointment'}
+            {editAppt
+              ? isPatient ? 'Reschedule Your Appointment' : 'Reschedule ' + editAppt.id
+              : isPatient ? 'Request New Appointment' : 'Book Appointment'}
           </div>
           {error && (
             <div className="alert" style={{ background:'#fef2f2', color:'#dc2626', marginBottom:10 }}>
@@ -169,7 +183,6 @@ export default function Scheduling() {
           )}
           <form onSubmit={handleSubmit}>
             <div className="form-grid">
-
               {isPatient && (
                 <div className="form-group full">
                   <label>Your Full Name</label>
@@ -182,7 +195,6 @@ export default function Scheduling() {
                   />
                 </div>
               )}
-
               {!isPatient && !editAppt && (
                 <div className="form-group">
                   <label>Patient</label>
@@ -196,31 +208,20 @@ export default function Scheduling() {
                   </select>
                 </div>
               )}
-
               <div className="form-group">
                 <label>Doctor</label>
-                <select
-                  value={form.doctor}
-                  onChange={e => setForm({...form, doctor:e.target.value})}
-                  required
-                >
+                <select value={form.doctor} onChange={e => setForm({...form, doctor:e.target.value})} required>
                   <option value="">Select doctor</option>
                   {DOCTORS.map(d => <option key={d}>{d}</option>)}
                 </select>
               </div>
-
               <div className="form-group">
                 <label>Department</label>
-                <select
-                  value={form.dept}
-                  onChange={e => setForm({...form, dept:e.target.value})}
-                  required
-                >
+                <select value={form.dept} onChange={e => setForm({...form, dept:e.target.value})} required>
                   <option value="">Select department</option>
                   {DEPTS.map(d => <option key={d}>{d}</option>)}
                 </select>
               </div>
-
               <div className="form-group">
                 <label>Date</label>
                 <input
@@ -230,24 +231,26 @@ export default function Scheduling() {
                   required
                 />
               </div>
-
               <div className="form-group">
                 <label>Time</label>
-                <select
-                  value={form.time}
-                  onChange={e => setForm({...form, time:e.target.value})}
-                  required
-                >
+                <select value={form.time} onChange={e => setForm({...form, time:e.target.value})} required>
                   <option value="">Select time</option>
                   {TIMES.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
-
             </div>
+
+            {isPatient && (
+              <div style={{ marginTop:10, padding:'10px 12px', background:'#eff6ff', borderRadius:8, fontSize:12, color:'#3b82f6' }}>
+                ℹ️ Rescheduled appointments will be set to Pending until confirmed by staff.
+              </div>
+            )}
 
             <div style={{ display:'flex', gap:8, marginTop:12 }}>
               <button type="submit" className="btn btn-primary">
-                {editAppt ? 'Save Changes' : isPatient ? 'Submit Request' : 'Confirm Booking'}
+                {editAppt
+                  ? 'Save Reschedule'
+                  : isPatient ? 'Submit Request' : 'Confirm Booking'}
               </button>
               <button
                 type="button"
@@ -285,12 +288,24 @@ export default function Scheduling() {
                   <td>{a.dept}</td>
                   <td>{a.date}</td>
                   <td>{a.time}</td>
-                  <td><span className={`badge ${statusBadge(a.status)}`}>{a.status}</span></td>
+                  <td><span className={'badge ' + statusBadge(a.status)}>{a.status}</span></td>
                   <td>
                     <div className="flex gap-8">
-                      {canEdit && a.status !== 'Completed' && (
-                        <button className="btn btn-sm" onClick={() => openEditForm(a)}>
+                      {isPatient && a.status !== 'Completed' && (
+                        <button
+                          className="btn btn-sm"
+                          onClick={() => openEditForm(a)}
+                          title="Request a new date or time"
+                        >
                           Reschedule
+                        </button>
+                      )}
+                      {isPatient && (a.status === 'Pending' || a.status === 'Confirmed') && (
+                        <button
+                          className="btn btn-danger btn-sm"
+                          onClick={() => cancel(a.id, true)}
+                        >
+                          Cancel
                         </button>
                       )}
                       {canEdit && a.status === 'Pending' && (
@@ -303,13 +318,13 @@ export default function Scheduling() {
                           Complete
                         </button>
                       )}
-                      {isPatient && a.status === 'Pending' && (
-                        <button className="btn btn-danger btn-sm" onClick={() => cancel(a.id)}>
-                          Cancel
+                      {canEdit && a.status !== 'Completed' && (
+                        <button className="btn btn-sm" onClick={() => openEditForm(a)}>
+                          Reschedule
                         </button>
                       )}
                       {canEdit && (
-                        <button className="btn btn-danger btn-sm" onClick={() => cancel(a.id)}>
+                        <button className="btn btn-danger btn-sm" onClick={() => cancel(a.id, false)}>
                           Cancel
                         </button>
                       )}
